@@ -1,4 +1,6 @@
-﻿using APBD_cw10_s30046.Services;
+﻿using APBD_cw10_s30046.DTO;
+using APBD_cw10_s30046.Exceptions;
+using APBD_cw10_s30046.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace APBD_cw10_s30046.Controllers;
@@ -26,5 +28,23 @@ public class TripsController(IDbService service) : ControllerBase
 
         var result = await service.GetPagedTripsAsync(finalPage, finalPageSize);
         return Ok(result);
+    }
+    
+    [HttpPost("{idTrip}/clients")]
+    public async Task<IActionResult> AddClientToTrip(int idTrip, [FromBody] ClientTripRequestDto dto)
+    {
+        try
+        {
+            await service.AddClientToTripAsync(idTrip, dto);
+            return Ok("Client added to trip.");
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }

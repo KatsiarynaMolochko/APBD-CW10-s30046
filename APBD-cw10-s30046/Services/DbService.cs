@@ -1,5 +1,7 @@
 ﻿using APBD_cw10_s30046.Data;
 using APBD_cw10_s30046.DTO;
+using APBD_cw10_s30046.Exceptions;
+using APBD_cw10_s30046.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,7 +50,6 @@ public class DbService(ClientAndTripsDbContext data) : IDbService
         };
         return result;
     }
-    
     public async Task<TripResponseDto> GetAllTripsAsync()
     {
         var trips = await data.Trips
@@ -83,13 +84,74 @@ public class DbService(ClientAndTripsDbContext data) : IDbService
 
         return result;
     }
+    public async Task DeleteClientAsync(int idClient)
+    {
+        var client = await data.Clients
+            .Include(c => c.ClientTrips)
+            .FirstOrDefaultAsync(c => c.IdClient == idClient);
 
+        if (client == null)
+            throw new NotFoundException("Client not found");
+
+        if (client.ClientTrips.Any())
+            throw new ClientHasTripsException();
+
+        data.Clients.Remove(client);
+        await data.SaveChangesAsync();
+    }
+
+    public async Task AddClientToTripAsync(int idTrip, ClientTripRequestDto dto)
+    {
+        var trip = await data.Trips.FindAsync(idTrip);
+        if (trip == null)
+            throw new NotFoundException("Trip not found");
+        
+        if (trip.DateFrom <= DateTime.Now)
+            throw new InvalidOperationException("Trip has already started or ended");
+        
+        var existingClient = await data.Clients.FirstOrDefaultAsync(c => c.Pesel == dto.Pesel);
+        
+        if (existingClient != null)
+        {
+            var alreadyRegistered = await data.ClientTrips
+                .AnyAsync(ct => ct.IdClient == existingClient.IdClient && ct.IdTrip == idTrip);
+
+            if (alreadyRegistered)
+                throw new InvalidOperationException("Client is already registered for this trip");
+        }
+        else
+        {
+            existingClient = new Client
+            {
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                Email = dto.Email,
+                Telephone = dto.Telephone,
+                Pesel = dto.Pesel
+            };
+            data.Clients.Add(existingClient);
+            await data.SaveChangesAsync(); 
+        }
+        
+        var clientTrip = new ClientTrip
+        {
+            IdClient = existingClient.IdClient,
+            IdTrip = idTrip,
+            RegisteredAt = DateTime.Now,
+            PaymentDate = dto.PaymentDate == default ? null : dto.PaymentDate
+        };
+        
+        data.ClientTrips.Add(clientTrip);
+        await data.SaveChangesAsync();
+    }
+    
 }
 
 public interface IDbService
 {
     Task<TripResponseDto> GetPagedTripsAsync(int page = 1, int pageSize = 10);
     Task<TripResponseDto> GetAllTripsAsync();
-    
-    
+    Task DeleteClientAsync(int idClient);
+    Task AddClientToTripAsync(int idTrip, ClientTripRequestDto dto);
+
 }

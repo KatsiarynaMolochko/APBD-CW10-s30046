@@ -12,5 +12,5 @@ public class ClientTripRequestDto
     public String Pesel { get; set; }
     public int IdTrip { get; set; }
     public String TripName { get; set; }
-    public DateTime PaymentDate { get; set; }
+    public DateTime? PaymentDate { get; set; }
 }
